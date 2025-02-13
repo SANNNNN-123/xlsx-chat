@@ -7,6 +7,7 @@ import { MessageCircle, ArrowUp } from "lucide-react"
 import { ChatMessages } from "@/components/chat/chat-messages"
 import { Message } from "ai/react"
 import { getApiUrl } from "@/lib/utils"
+import { formatTableContent } from './table-formatters'
 
 const styles = {
   userMessage: `flex justify-end mb-4`,
@@ -42,12 +43,14 @@ export default function ChatInterface() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ query: input }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch from API');
+        throw new Error(`Failed to fetch from API: ${response.status}`);
       }
 
       const data = await response.json();
@@ -56,10 +59,13 @@ export default function ChatInterface() {
         throw new Error('Invalid response format from API');
       }
 
+      // Format the response using the new formatter
+      const formattedContent = formatTableContent(data.response);
+
       setMessages(prev => [...prev, {
         id: String(Date.now()),
         role: 'assistant',
-        content: data.response
+        content: formattedContent
       }]);
 
       setInput('');
@@ -82,7 +88,7 @@ export default function ChatInterface() {
     },
     {
       title: "Find me summary grid of",
-      subtitle: "S5_loop variable",
+      subtitle: "S5S6_loop variable",
     },
     {
       title: "Give me count for",
@@ -122,7 +128,7 @@ export default function ChatInterface() {
                     </div>
                   )}
                   <div className={message.role === 'user' ? styles.userBubble : styles.assistantBubble}>
-                    {message.content}
+                    {typeof message.content === 'string' ? message.content : message.content}
                   </div>
                 </div>
               ))}

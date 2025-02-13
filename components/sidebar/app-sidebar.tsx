@@ -18,44 +18,40 @@ import {
 const data = {
   navMain: [
     {
-      title: "Getting Started",
+      title: "Menu",
       url: "#",
       items: [
         {
-          title: "Installation",
+          title: "Home",
           url: "#",
         },
         {
-          title: "Project Structure",
+          title: "Tree View",
+          url: "#",
+        },
+        {
+          title: "DM Query Syntax",
+          url: "#",
+        },
+        {
+          title: "Visualization",
           url: "#",
         },
       ],
     },
     {
-      title: "Building Your Application",
+      title: "Etc",
       url: "#",
       items: [
         {
-          title: "Routing",
+          title: "Features Request",
           url: "#",
         },
         {
-          title: "Data Fetching",
+          title: "Options",
           url: "#",
           isActive: true,
-        },
-        {
-          title: "Rendering",
-          url: "#",
-        },
-        {
-          title: "Caching",
-          url: "#",
-        },
-        {
-          title: "Styling",
-          url: "#",
-        },
+        }
       ],
     },
   ],

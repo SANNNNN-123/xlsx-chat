@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getApiUrl(path: string): string {
+  // For local development, hardcode the backend URL
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  // Remove any trailing slashes from baseUrl and leading slashes from path
   const cleanBaseUrl = baseUrl.replace(/\/$/, '');
   const cleanPath = path.replace(/^\//, '');
   return cleanPath ? `${cleanBaseUrl}/${cleanPath}` : cleanBaseUrl;

@@ -138,6 +138,8 @@ BEGIN
         AND sr.response_value IS NOT NULL
         UNION ALL
         SELECT 'Base'::TEXT
+        UNION ALL
+        SELECT 'Total'::TEXT
     )
     SELECT 
         r.response_value::TEXT,
@@ -148,6 +150,11 @@ BEGIN
                     (SELECT COUNT(DISTINCT sr2.respondent_id)::TEXT
                      FROM survey_responses sr2
                      WHERE sr2.question_id = q.question_id)
+                WHEN r.response_value = 'Total' THEN
+                    (SELECT COUNT(*)::TEXT
+                     FROM survey_responses sr2
+                     WHERE sr2.question_id = q.question_id
+                     AND sr2.response_value IS NOT NULL)
                 ELSE
                     (SELECT COUNT(*)::TEXT
                      FROM survey_responses sr2
@@ -161,7 +168,11 @@ BEGIN
     ) q
     GROUP BY r.response_value
     ORDER BY 
-        CASE WHEN r.response_value = 'Base' THEN 0 ELSE 1 END,
+        CASE 
+            WHEN r.response_value = 'Base' THEN 0 
+            WHEN r.response_value = 'Total' THEN 2
+            ELSE 1 
+        END,
         CASE 
             WHEN r.response_value ~ '^\d+$' THEN LPAD(r.response_value, 10, '0')
             ELSE r.response_value 
