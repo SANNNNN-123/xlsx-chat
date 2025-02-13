@@ -4,6 +4,7 @@ from supabase import create_client
 from openai import OpenAI  
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Union
 import uvicorn
@@ -489,9 +490,9 @@ analytic_agent = BasicAnalyticAgent()
 
 @app.get("/")
 async def root():
-    return {"message": "Survey Analysis API is running"}
+    return {"status": "ok", "message": "API is running"}
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query")
 async def process_query(request: QueryRequest):
     try:
         print(f"Received query: {request.query}")
@@ -527,3 +528,14 @@ async def get_counts(question_id: str):
         return {"counts": counts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.options("/query")
+async def options_query():
+    return JSONResponse(
+        content={},
+        headers={
+            "Allow": "POST",
+            "Access-Control-Allow-Methods": "POST",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
