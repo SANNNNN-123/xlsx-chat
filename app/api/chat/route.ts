@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const latestMessage = messages[messages.length - 1].content;
     
     // Use getApiUrl helper to get the correct API URL
-    const response = await fetch(getApiUrl('/query'), {
+    const response = await fetch(`${getApiUrl('')}/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

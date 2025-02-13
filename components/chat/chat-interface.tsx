@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { MessageCircle, ArrowUp } from "lucide-react"
 import { ChatMessages } from "@/components/chat/chat-messages"
 import { Message } from "ai/react"
+import { getApiUrl } from "@/lib/utils"
 
 const styles = {
   userMessage: `flex justify-end mb-4`,
@@ -37,7 +38,7 @@ export default function ChatInterface() {
         content: input
       }]);
 
-      const response = await fetch('http://127.0.0.1:8000/query', {
+      const response = await fetch(`${getApiUrl('')}/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -45,7 +46,15 @@ export default function ChatInterface() {
         body: JSON.stringify({ query: input }),
       });
 
+      if (!response.ok) {
+        throw new Error('Failed to fetch from API');
+      }
+
       const data = await response.json();
+
+      if (!data.response) {
+        throw new Error('Invalid response format from API');
+      }
 
       setMessages(prev => [...prev, {
         id: String(Date.now()),

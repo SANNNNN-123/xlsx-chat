@@ -10,8 +10,8 @@ import uvicorn
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Excel-Chat",
-    description="API for Excel-Chat",
+    title="XLSX-Chat",
+    description="API for XLSX-Chat",
     version="1.0.0"
 )
 
@@ -22,8 +22,10 @@ load_dotenv()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv('FRONTEND_URL', '*'),  # Your frontend URL
-        'https://*.vercel.app',  # Allow all Vercel deployments
+        os.getenv('FRONTEND_URL', '*'),
+        'https://*.vercel.app',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
     ],
     allow_credentials=True,
     allow_methods=["*"],
