@@ -18,14 +18,16 @@ app = FastAPI(
 # Load environment variables
 load_dotenv()
 
-# Update CORS middleware
+# Update CORS middleware with proper frontend URL
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv('FRONTEND_URL', '*')],  # Replace * with your frontend URL in production
+    allow_origins=[
+        os.getenv('FRONTEND_URL', '*'),  # Your frontend URL
+        'https://*.vercel.app',  # Allow all Vercel deployments
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # Pydantic models for request/response

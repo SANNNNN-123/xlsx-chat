@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/api/chat/query",
+      "dest": "app/api/chat/agent.py"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "app/api/chat/agent.py"
     },

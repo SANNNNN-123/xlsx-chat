@@ -1,14 +1,13 @@
 import { NextRequest } from 'next/server';
+import { getApiUrl } from '@/lib/utils';
 
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
     const latestMessage = messages[messages.length - 1].content;
     
-    // Use environment variable for API URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-    
-    const response = await fetch(`${apiUrl}/query`, {
+    // Use getApiUrl helper to get the correct API URL
+    const response = await fetch(getApiUrl('/query'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
