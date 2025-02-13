@@ -4,10 +4,11 @@ export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
     const latestMessage = messages[messages.length - 1].content;
-
-    console.log('Sending to FastAPI:', latestMessage);
-
-    const response = await fetch('http://127.0.0.1:8000/query', {
+    
+    // Use environment variable for API URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+    
+    const response = await fetch(`${apiUrl}/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

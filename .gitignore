@@ -50,3 +50,5 @@ myenv/
 env/
 venv/
 ENV/
+
+.vercel

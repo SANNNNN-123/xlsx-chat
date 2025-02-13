@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Union
+import uvicorn
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -20,7 +21,7 @@ load_dotenv()
 # Update CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_origins=[os.getenv('FRONTEND_URL', '*')],  # Replace * with your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
