@@ -29,7 +29,9 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001"
+        "http://127.0.0.1:3001",
+        "https://*.vercel.app",  # Allow Vercel domains
+        process.env.NEXT_PUBLIC_FRONTEND_URL  # Your custom domain if any
     ],
     allow_credentials=True,
     allow_methods=["*"],
