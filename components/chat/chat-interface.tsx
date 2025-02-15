@@ -33,6 +33,7 @@ export default function ChatInterface() {
       setIsLoading(true);
       setError(null);
       
+      // Add user message immediately
       setMessages(prev => [...prev, {
         id: String(Date.now()),
         role: 'user',
@@ -54,21 +55,28 @@ export default function ChatInterface() {
       }
 
       const data = await response.json();
-
-      if (!data.response) {
-        throw new Error('Invalid response format from API');
+      
+      // Check if we need to prompt for additional parameters
+      if (data.response.includes("Please specify a factor")) {
+        setMessages(prev => [...prev, {
+          id: String(Date.now()),
+          role: 'assistant',
+          content: data.response + "\n\nPlease provide the factor you want to use:"
+        }]);
+        
+        // Store the original question context
+        setInput(`For ${input} by `);
+      } else {
+        // Format and show normal response
+        const formattedContent = formatTableContent(data.response);
+        setMessages(prev => [...prev, {
+          id: String(Date.now()),
+          role: 'assistant',
+          content: formattedContent
+        }]);
+        setInput('');
       }
 
-      // Format the response using the new formatter
-      const formattedContent = formatTableContent(data.response);
-
-      setMessages(prev => [...prev, {
-        id: String(Date.now()),
-        role: 'assistant',
-        content: formattedContent
-      }]);
-
-      setInput('');
     } catch (err) {
       setError("Failed to send message. Please try again.");
       console.error("Chat error:", err);
@@ -92,7 +100,7 @@ export default function ChatInterface() {
     },
     {
       title: "Give me count for",
-      subtitle: "in San Francisco?",
+      subtitle: "and mean for Q3",
     },
   ];
 

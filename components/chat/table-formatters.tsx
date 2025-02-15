@@ -39,11 +39,11 @@ interface GridTableProps {
 
 export const GridTable: React.FC<GridTableProps> = ({ content }) => {
   // For grid summary tables
-  if (!content.includes('\t')) return null;
+  if (!content.includes('\t') || !content.includes('Base')) return null;
 
   const lines = content.split('\n').filter(line => line.trim());
   const headers = lines[0].split('\t').map(h => h.trim()).filter(Boolean);
-  const dataRows = lines.slice(1); // Skip the header row
+  const dataRows = lines.slice(1); // Skip only the header row
 
   // Find the Base row
   const baseRowIndex = dataRows.findIndex(row => row.split('\t')[0] === 'Base');
@@ -108,9 +108,70 @@ export const GridTable: React.FC<GridTableProps> = ({ content }) => {
   );
 };
 
+interface CountAndMeanTableProps {
+  content: string;
+}
+
+export const CountAndMeanTable: React.FC<CountAndMeanTableProps> = ({ content }) => {
+  if (!content.includes('\t')) return null;
+
+  const lines = content.split('\n').filter(line => line.trim());
+  const headers = lines[0].split('\t').map(h => h.trim());
+  const dataRows = lines.slice(1);
+
+  return (
+    <div className="overflow-x-auto max-w-full">
+      <table className="min-w-[500px] border-collapse text-sm">
+        <thead>
+          <tr>
+            {headers.map((header, index) => (
+              <th 
+                key={index}
+                className={`border border-gray-300 px-4 py-2 bg-gray-100 ${
+                  index === 0 ? 'text-left' : 'text-right'
+                }`}
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {dataRows.map((row, index) => {
+            const cells = row.split('\t').map(cell => cell.trim());
+            const isSpecialRow = cells[0] === 'Base' || cells[0] === 'Total' || cells[0] === 'Mean';
+            
+            return (
+              <tr key={index} className={isSpecialRow ? 'bg-gray-50 font-bold' : ''}>
+                {cells.map((cell, cellIndex) => (
+                  <td 
+                    key={cellIndex}
+                    className={`border border-gray-300 px-4 py-2 ${
+                      cellIndex === 0 ? 'text-left' : 'text-right'
+                    }`}
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export function formatTableContent(content: string): string | React.ReactElement {
+  // Check if it's a count and mean calculation
+  if (content.includes('Category') && content.includes('Factors') && content.includes('Sum')) {
+    return <CountAndMeanTable content={content} />;
+  }
+  
   // Check if it's a grid summary table
-  if ((content.toLowerCase().includes('summary') || content.toLowerCase().includes('grid')) && content.includes('\t')) {
+  if (content.includes('\t') && 
+      (content.includes('_loop[') || content.toLowerCase().includes('grid')) && 
+      content.includes('Base')) {
     return <GridTable content={content} />;
   }
   

@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Union
 import uvicorn
+import json
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -142,47 +143,79 @@ class ValidationAgent:
 
     def extract_operation_and_question(self, user_input):
         try:
-            # Use LLM to extract both operation and question ID
-            prompt = f"""
-            Analyze the user input and extract the operation type and question ID.
-            
-            Operation types:
-            1. "check" or "exist" - if asking about existence of a question
-            2. "count" - if asking for counts/frequency
-            3. "summary" or "grid" - if asking for grid summary
-            4. "none" - if operation unclear or input is gibberish
-            
-            Question ID formats: S5, S5[1], S5S6_loop, Q1, resp_gender, race, etc.
-            
-            Return format: operation|question_id
-            If input is unclear/gibberish or no question ID found, return: none|none
-            
-            Examples:
-            "does s0 exist?" -> check|s0
-            "what is count for s5s6_loop" -> count|s5s6_loop
-            "show me grid summary of s5s6_loop" -> summary|s5s6_loop
-            "hello how are you" -> none|none
-            
-            Input: {user_input}
-            Output: """
+            # Check if this is a factor response with code mappings
+            if user_input.lower().startswith("factor:") or "code" in user_input.lower():
+                prompt = f"""
+                Analyze this response that appears to contain factor mapping information.
+                If it contains age/year mappings, extract 'age' as the factor.
+                If it contains gender mappings, extract 'gender' as the factor.
+                If it contains currency/money values, extract 'currency' as the factor.
+                If it contains other numeric mappings, identify as 'numeric'.
 
-            try:
+                Input: {user_input}
+                
+                Return format: none|none|factor_type
+                Examples: 
+                - For age codes like "Code 2: 23 years" -> none|none|age
+                - For currency like "Code 3: 1500.5" -> none|none|currency
+                - For other numbers like "Code 1: 5.4" -> none|none|numeric
+
+                Output:"""
+                
                 llm_response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}]
                 )
                 result = llm_response.choices[0].message.content.strip()
-                operation, question_id = result.split('|')
-                print(f"LLM extracted - Operation: {operation}, Question ID: {question_id}")
-                return operation.lower(), question_id
+                
+                # If we identified any factor type, return it
+                if result.endswith(('|age', '|gender', '|currency', '|numeric')):
+                    return None, None, result.split('|')[-1]
 
-            except Exception as llm_e:
-                print(f"LLM extraction failed: {llm_e}")
-                return None, None
+            # Original prompt for regular queries - updated to handle more check variations
+            prompt = f"""
+            Analyze the user input and extract the operation types, question ID, and any additional parameters.
+            Preserve the exact case of the question ID as given in the input.
+            
+            Operation types (can be multiple):
+            1. "check" - existence check (includes variations like "does X exist", "do you have X", "is there X")
+            2. "count" - frequency counts
+            3. "summary" - grid summary
+            4. "mean" - average calculation (requires factor)
+            5. "none" - unclear request
+            
+            Required format: operations|question_id|factor(if needed)
+            
+            Examples:
+            "Give me count and mean for Q3" -> count,mean|Q3|none
+            "For count and mean of Q3 by age" -> count,mean|Q3|age
+            "By gender" -> none|none|gender
+            "does q43 exist" -> check|q43|none
+            "do you have Q43" -> check|Q43|none
+            "is there q43" -> check|q43|none
+            "check for q43" -> check|q43|none
+            
+            Input: {user_input}
+            Output: """
+            
+            llm_response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = llm_response.choices[0].message.content.strip()
+            print(f"LLM extraction result: {result}")
+            
+            # Split into components
+            parts = result.split('|')
+            operations = [op.strip().lower() for op in parts[0].split(',')]
+            question_id = parts[1].strip() if len(parts) > 1 else None
+            factor = parts[2].strip() if len(parts) > 2 and parts[2] != 'none' else None
+            
+            return operations, question_id, factor
 
         except Exception as e:
-            print(f"Error in operation and question extraction: {e}")
-            return None, None
+            print(f"Error in operation extraction: {e}")
+            return None, None, None
 
     def get_grid_variations(self, base_id):
         try:
@@ -203,19 +236,121 @@ class ValidationAgent:
             print(f"Error finding grid variations: {e}")
             return []
 
+    def extract_factor_mappings(self, user_input):
+        try:
+            # Use LLM to extract factor mappings
+            prompt = f"""
+            Extract code to value mappings from the input.
+            Return as JSON format with code as key and numeric value as value.
+            Remove any text like "years old", "Code", "-->", etc.
+            
+            Example input: "Code 2 --> 23 years old Code 3 --> 28 years old"
+            Example output: {{"2": 23, "3": 28}}
+            
+            Input: {user_input}
+            Output:"""
+            
+            llm_response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = llm_response.choices[0].message.content.strip()
+            print(f"LLM factor mapping result: {result}")
+            
+            # Parse the JSON response
+            mappings = json.loads(result)
+            return mappings
+            
+        except Exception as e:
+            print(f"Error extracting factor mappings: {e}")
+            return None
+
     def process_query(self, user_input):
         try:
-            # Extract operation and question ID
-            operation, question_id = self.extract_operation_and_question(user_input)
+            # Extract operations, question ID, and factor
+            operations, question_id, factor = self.extract_operation_and_question(user_input)
             
-            # Handle unclear/gibberish input
-            if not operation or operation == 'none' or not question_id or question_id == 'none':
-                return "Please specify your operation and variable"
+            # Handle factor-only responses (including code mappings)
+            if not operations and not question_id and factor:
+                # Look up the last query that needed a factor
+                if hasattr(self, 'last_query_needing_factor'):
+                    operations = self.last_query_needing_factor.get('operations')
+                    question_id = self.last_query_needing_factor.get('question_id')
+                    
+                    # Extract factor mappings if provided
+                    factor_mappings = self.extract_factor_mappings(user_input)
+                    if factor_mappings:
+                        # Get the counts
+                        analytic_agent = BasicAnalyticAgent()
+                        counts = analytic_agent.get_counts(question_id)
+                        
+                        # Calculate weighted mean
+                        count_lines = counts.split('\n')
+                        total_weighted = 0
+                        total_count = 0
+                        base_count = 0
+                        
+                        # Process each count line
+                        processed_lines = []
+                        for line in count_lines:
+                            if not line.strip():
+                                continue
+                                
+                            parts = line.split('\t')
+                            if len(parts) != 2:
+                                continue
+                                
+                            category, count = parts
+                            category = category.strip()
+                            count = int(parts[1].strip())
+                            
+                            if category == 'Base':
+                                base_count = count
+                                processed_lines.append(line)
+                            elif category == 'Total':
+                                processed_lines.append(line)
+                            elif category in factor_mappings:
+                                value = factor_mappings[category]
+                                weighted = count * value
+                                total_weighted += weighted
+                                total_count += count
+                                processed_lines.append(f"{category}\t{count}\t{value}\t{weighted}")
+                        
+                        # Calculate mean
+                        mean = total_weighted / total_count if total_count > 0 else 0
+                        
+                        # Format response with counts and mean
+                        response = "Category\tCount\tFactors\tSum\n"
+                        
+                        # Add Base row
+                        base_line = next((line for line in processed_lines if 'Base' in line), None)
+                        if base_line:
+                            response += f"{base_line}\n"
+                            processed_lines.remove(base_line)
+                        
+                        # Add data rows (excluding Base, Total, and Mean)
+                        data_lines = [line for line in processed_lines 
+                                    if not any(x in line for x in ['Base', 'Total', 'Mean'])]
+                        response += "\n".join(data_lines)
+                        
+                        # Add Mean row
+                        response += f"\nMean\t-\t-\t{mean:.2f}"
+                        
+                        # Add Total row
+                        total_line = next((line for line in processed_lines if 'Total' in line), None)
+                        if total_line:
+                            response += f"\n{total_line}"
+                        
+                        return response
+            
+            # Handle invalid extractions
+            if not operations or 'none' in operations or not question_id:
+                return "Please specify your request clearly (e.g. 'count and mean for Q3 by gender')"
 
             # Check if question exists using check_question_exists function
             existence_check = self.supabase.rpc(
                 'check_question_exists',
-                {'p_question_id': question_id}
+                {'p_question_id': question_id}  # Use question_id as-is, preserving case
             ).execute()
 
             if existence_check.data:
@@ -223,7 +358,7 @@ class ValidationAgent:
                 similar_questions = existence_check.data.get('similar_questions', [])
 
                 # Handle existence check operation
-                if operation in ['check', 'exist']:
+                if 'check' in operations:
                     if does_exist:
                         return f"Yes, question {question_id} exists in the database."
                     else:
@@ -235,12 +370,7 @@ class ValidationAgent:
                             return suggestion_msg
                         return f"No, question {question_id} does not exist in database"
 
-                # For summary/grid operations, directly get counts if it's a loop/grid question
-                if operation.lower() in ['summary', 'grid'] and ('_loop' in question_id or '[' in question_id):
-                    analytic_agent = BasicAnalyticAgent()
-                    return analytic_agent.get_counts(question_id.split('[')[0])  # Pass base ID for summary
-
-                # Handle other operations (count, summary) only if question exists
+                # Handle other operations only if question exists
                 if not does_exist:
                     if similar_questions:
                         suggestion_msg = (
@@ -250,17 +380,36 @@ class ValidationAgent:
                         return suggestion_msg
                     return f"Question {question_id} not found in database"
 
-                # Question exists and operation is valid, forward to BasicAnalyticAgent
-                if operation.lower() in ['count', 'summary']:
-                    analytic_agent = BasicAnalyticAgent()
-                    return analytic_agent.get_counts(question_id)
-                else:
-                    return f"Operation '{operation}' not supported. Available operations: count, summary, check"
+            # If question exists, proceed with processing operations
+            results = []
+            analytic_agent = BasicAnalyticAgent()
+            
+            # Store query context if it needs a factor
+            if 'mean' in operations and not factor:
+                self.last_query_needing_factor = {
+                    'operations': operations,
+                    'question_id': question_id
+                }
+            
+            # Process each operation
+            for op in operations:
+                if op == 'count':
+                    counts = analytic_agent.get_counts(question_id)
+                    results.append(f"Counts for {question_id}:\n{counts}")
+                elif op == 'mean':
+                    if not factor:
+                        return f"Please specify the factors for mean calculation of {question_id}"
+                    results.append(f"Please provide the factor values (e.g. 'Code 1 --> 23, Code 2 --> 28')")
+                elif op == 'summary':
+                    results.append(f"Summary for {question_id}:\n{analytic_agent.get_counts(question_id)}")
+                elif op == 'check':
+                    # Already handled above
+                    continue
+            
+            return "\n\n".join(results)
 
-            return "Error validating question"
-
-        except:
-            print(f"Error processing query:")
+        except Exception as e:
+            print(f"Error processing query: {e}")
             return "I couldn't process that query. Please try again"
 
 class BasicAnalyticAgent:
