@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 from openai import OpenAI  
+
+import google.generativeai as genai
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -55,11 +57,11 @@ class ValidationAgent:
             os.getenv('SUPABASE_KEY')
         )
         # Initialize OpenAI client
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        self.model = "gpt-4"  # Using GPT-4 model
+        # self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        # self.model = "gpt-4"  # Using GPT-4 model
         # Initialize Gemini
-        #genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-        #self.model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+        self.model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
 
     def find_similar_questions(self, question_id):
         try:
@@ -162,11 +164,14 @@ class ValidationAgent:
 
                 Output:"""
                 
-                llm_response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                result = llm_response.choices[0].message.content.strip()
+                llm_response = self.model.generate_content(prompt)
+                result = llm_response.text.strip()
+                
+                # llm_response = self.client.chat.completions.create(
+                #     model=self.model,
+                #     messages=[{"role": "user", "content": prompt}]
+                # )
+                # result = llm_response.choices[0].message.content.strip()
                 
                 # If we identified any factor type, return it
                 if result.endswith(('|age', '|gender', '|currency', '|numeric')):
@@ -198,12 +203,17 @@ class ValidationAgent:
             Input: {user_input}
             Output: """
             
-            llm_response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            result = llm_response.choices[0].message.content.strip()
+            llm_response = self.model.generate_content(prompt)
+            result = llm_response.text.strip()
             print(f"LLM extraction result: {result}")
+            
+            
+            # llm_response = self.client.chat.completions.create(
+            #     model=self.model,
+            #     messages=[{"role": "user", "content": prompt}]
+            # )
+            # result = llm_response.choices[0].message.content.strip()
+            # print(f"LLM extraction result: {result}")
             
             # Split into components
             parts = result.split('|')
@@ -250,12 +260,23 @@ class ValidationAgent:
             Input: {user_input}
             Output:"""
             
-            llm_response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            result = llm_response.choices[0].message.content.strip()
+            llm_response = self.model.generate_content(prompt)
+            result = llm_response.text.strip()
             print(f"LLM factor mapping result: {result}")
+            
+            # Clean up the response by removing markdown code block syntax
+            if result.startswith('```json'):
+                result = result[7:]  # Remove ```json
+            if result.endswith('```'):
+                result = result[:-3]  # Remove ```
+            result = result.strip()
+            
+            # llm_response = self.client.chat.completions.create(
+            #     model=self.model,
+            #     messages=[{"role": "user", "content": prompt}]
+            # )
+            # result = llm_response.choices[0].message.content.strip()
+            # print(f"LLM factor mapping result: {result}")
             
             # Parse the JSON response
             mappings = json.loads(result)
@@ -270,6 +291,13 @@ class ValidationAgent:
             # Extract operations, question ID, and factor
             operations, question_id, factor = self.extract_operation_and_question(user_input)
             
+            # Handle summary/grid operations for loop/grid questions
+            if operations and any(op.lower() in ['summary', 'grid'] for op in operations) and \
+               question_id and ('_loop' in question_id or '[' in question_id):
+                analytic_agent = BasicAnalyticAgent()
+                base_id = question_id.split('[')[0]  # Get base ID for summary
+                return analytic_agent.get_counts(base_id)
+
             # Handle factor-only responses (including code mappings)
             if not operations and not question_id and factor:
                 # Look up the last query that needed a factor
@@ -395,7 +423,7 @@ class ValidationAgent:
             for op in operations:
                 if op == 'count':
                     counts = analytic_agent.get_counts(question_id)
-                    results.append(f"Counts for {question_id}:\n{counts}")
+                    results.append(f"{question_id}:\n{counts}")
                 elif op == 'mean':
                     if not factor:
                         return f"Please specify the factors for mean calculation of {question_id}"
@@ -454,6 +482,29 @@ class BasicAnalyticAgent:
                             'p_grid_numbers': [grid_num]
                         }
                     ).execute()
+
+                    if not result.data:
+                        return "No data found"
+
+                    # Format output for single grid column
+                    output_lines = []
+                    output_lines.append(f"Base\t{result.data[0]['counts'].get(question_id, '0')}")
+                    
+                    # Add data rows
+                    for row in result.data:
+                        if row['response_value'] not in ['Base', 'Total']:
+                            count = row['counts'].get(question_id, '0')
+                            if int(count) > 0:  # Only include non-zero counts
+                                output_lines.append(f"{row['response_value']}\t{count}")
+                    
+                    # Add Total row
+                    total = sum(int(row['counts'].get(question_id, '0')) 
+                               for row in result.data 
+                               if row['response_value'] not in ['Base', 'Total'])
+                    output_lines.append(f"Total\t{total}")
+                    
+                    return "\n".join(output_lines)
+
                 else:
                     # For base grid questions (e.g. S5S6_loop), directly call RPC without fetching grid numbers
                     result = self.supabase.rpc(
