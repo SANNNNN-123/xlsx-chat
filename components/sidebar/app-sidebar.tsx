@@ -98,7 +98,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarRail />
       <div className="mt-auto p-4 text-center text-sm text-muted-foreground">
-        Made by <a href="https://github.com/SANNNNN-123" target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Zuhair Aziz</a>
+        Made by <a href="https://zuhairsan.vercel.app/" target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Zuhair Aziz</a>
       </div>
     </Sidebar>
   )

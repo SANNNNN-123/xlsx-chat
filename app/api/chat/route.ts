@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const latestMessage = messages[messages.length - 1].content;
     
     // Initialize the model
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp-01-21" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
     
     // Get response from Gemini
     const result = await model.generateContent(latestMessage);
@@ -68,4 +68,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

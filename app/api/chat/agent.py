@@ -31,7 +31,6 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
         "https://*.vercel.app",  # Allow Vercel domains
-        process.env.NEXT_PUBLIC_FRONTEND_URL  # Your custom domain if any
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -63,7 +62,7 @@ class ValidationAgent:
         # self.model = "gpt-4"  # Using GPT-4 model
         # Initialize Gemini
         genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-        self.model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
     def find_similar_questions(self, question_id):
         try:
